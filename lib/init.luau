@@ -1,7 +1,6 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local Signal = require(ReplicatedStorage.Packages.Signal)
+local Signal = require(script.Parent.Signal)
 
 local Environment = if RunService:IsClient() then script.Client else script.Server
 
