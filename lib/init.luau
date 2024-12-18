@@ -8,9 +8,9 @@ local GlobalDataStream = require(Environment.GlobalDataStream) :: any
 local PlayerDataStream = require(Environment.PlayerDataStream) :: any
 
 type Signal<T...> = {
-	Connect: (self: Signal<T...>, fn: (T...) -> ()) -> Signal.Connection,
-	Once: (self: Signal<T...>, fn: (T...) -> ()) -> Signal.Connection,
-	Wait: (self: Signal<T...>) -> T...,
+    Connect: (self: Signal<T...>, fn: (T...) -> ()) -> Signal.Connection,
+    Once: (self: Signal<T...>, fn: (T...) -> ()) -> Signal.Connection,
+    Wait: (self: Signal<T...>) -> T...,
 }
 
 export type GlobalDataStream<T> = {
