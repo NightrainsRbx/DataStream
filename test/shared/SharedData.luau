@@ -1,3 +1,5 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStream = require(ReplicatedStorage.Packages.DataStream)
 
@@ -8,5 +10,9 @@ return {
     PlayerData = DataStream.player("PlayerData", {} :: {
         Coins: number,
         Inventory: {string}
+    }),
+    MatchData = DataStream.player("MatchData", {} :: {
+        IsMatch: boolean,
+        TimeLeft: number
     })
 }

@@ -1,9 +1,9 @@
+--!nocheck
+
 local DeltaCompress = require(script.Parent.Parent.Parent.DeltaCompress)
 local Signal = require(script.Parent.Parent.Parent.Signal)
 local Middleware = require(script.Parent.Parent.Middleware)
 local Util = require(script.Parent.Parent.Util)
-
-local DataStreams = {}
 
 local GlobalDataStream = {}
 
@@ -16,6 +16,8 @@ type Self = {
 
     Changed: Signal.Signal<>
 }
+
+local DataStreams: {Self}= {}
 
 function GlobalDataStream.new(name: string)
     local self = {
@@ -45,14 +47,14 @@ end
 function GlobalDataStream.GetData(self: Self)
     assert(self._data ~= nil, `GlobalDataStream "{self._name}" does not contain any data`)
 
-    if self._deferThread then
-        coroutine.resume(self._deferThread)
-    end
+    -- if self._deferThread then
+    --     coroutine.resume(self._deferThread)
+    -- end
 
     return self._data
 end
 
-function GlobalDataStream.GetDataMutable(self: Self)
+function GlobalDataStream.GetMutable(self: Self)
     assert(self._data ~= nil, `GlobalDataStream "{self._name}" does not contain any data`)
 
     if self._copy == nil then
@@ -67,21 +69,21 @@ function GlobalDataStream.GetDataMutable(self: Self)
         self._deferThread = task.defer(function()
             local diff, _ = DeltaCompress.diffMutable(self._copy, self._data)
             if diff then
-                Middleware.FireAllClients(self._id, "update", diff)
                 self.Changed:Fire()
-                self._deferThread = nil
+                Middleware.FireAllClients(self._id, "update", diff)
             end
+            self._deferThread = nil
         end)
     end
 
     return setmetatable({}, {
         __index = function(_, index)
             defer(self)
-            return (self._data :: any)[index]
+            return self._data[index]
         end,
         __newindex = function(_, index, value)
-            defer(self);
-            (self._data :: any)[index] = value
+            defer(self)
+            self._data[index] = value
         end,
         __iter = function()
             defer(self)
@@ -94,7 +96,7 @@ function GlobalDataStream.SetData(self: Self, data)
     assert(type(data) == "table", `Argument "data" needs to be a table, provided "{type(data)}"`)
 
     self._data = data
-    self._copy = Util.deepCopy(self._data)
+    self._copy = Util.deepCopy(data)
 
     if self._deferThread then
         task.cancel(self._deferThread)
@@ -102,7 +104,6 @@ function GlobalDataStream.SetData(self: Self, data)
     end
 
     self.Changed:Fire()
-
     Middleware.FireAllClients(self._id, "set", self._data)
 end
 
@@ -114,12 +115,15 @@ function GlobalDataStream.Wait(self: Self)
     if self._data ~= nil then
         return self
     end
-    local delay = task.delay(5, function()  
+
+    local delay = task.delay(5, function()
         warn("Infinite yield possible on GlobalDataStream:Wait()")
     end)
+
     repeat
         self.Changed:Wait()
     until self._data ~= nil
+
     task.cancel(delay)
     return self
 end

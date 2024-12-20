@@ -1,5 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players") 
+local Players = game:GetService("Players")
 
 local SharedData = require(ReplicatedStorage.Shared.SharedData)
 
@@ -10,24 +10,24 @@ RoundData:SetData({
     TimeLeft = 300
 })
 
-Players.PlayerAdded:Connect(function(player)
+Players.PlayerAdded:Connect(function(player: Player)
     PlayerData:SetData(player, {
-        Coins = 100,
+        Coins = math.random(100, 200),
         Inventory = {}
     })
 
     task.wait(3)
 
-    local dataMut = PlayerData:GetDataMutable(player)
+    local dataMut = PlayerData:GetMutable(player)
     dataMut.Coins += 50
     table.insert(dataMut.Inventory, "Axe")
 end)
 
-Players.PlayerRemoving:Connect(function(player)
+Players.PlayerRemoving:Connect(function(player: Player)
     PlayerData:RemoveData(player)
 end)
 
-local roundDataMut = RoundData:GetDataMutable()
+local roundDataMut = RoundData:GetMutable()
 while task.wait(1) do
     roundDataMut.TimeLeft -= 1
 end

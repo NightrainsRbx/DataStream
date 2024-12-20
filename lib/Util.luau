@@ -13,11 +13,13 @@ function Util.deepCopy(tbl: any): any
 end
 
 function Util.hashString(str: string): number
-    local h = 5381;
+    local hash = 5381
+	
     for i = 1, #str do
-        h = (bit32.lshift(h, 5) + h) + str:byte(i)
+        hash = (bit32.lshift(hash, 5) + hash) + str:byte(i)
     end
-    return h
+	
+    return hash
 end
 
 return Util

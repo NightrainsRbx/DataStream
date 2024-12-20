@@ -60,8 +60,12 @@ function PlayerDataStream.GetData(self: Self)
     return self._data
 end
 
-function PlayerDataStream.GetDataMutable()
+function PlayerDataStream.GetMutable()
     error("PlayerDataStream cannot be mutated from the client")
+end
+
+function PlayerDataStream.GetId()
+    error("PlayerDataStream:GetId() cannot be called from the client")
 end
 
 function PlayerDataStream.SetData()
@@ -80,12 +84,15 @@ function PlayerDataStream.Wait(self: Self)
     if self._data ~= nil then
         return self
     end
+
     local delay = task.delay(5, function()
         warn("Infinite yield possible on PlayerDataStream:Wait()")
     end)
+
     repeat
         self.Changed:Wait()
     until self._data ~= nil
+
     task.cancel(delay)
     return self
 end

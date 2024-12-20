@@ -55,7 +55,7 @@ function GlobalDataStream.GetData(self: Self)
     return self._data
 end
 
-function GlobalDataStream.GetDataMutable()
+function GlobalDataStream.GetMutable()
     error("GlobalDataStream cannot be mutated from the client")
 end
 
@@ -71,12 +71,15 @@ function GlobalDataStream.Wait(self: Self)
     if self._data ~= nil then
         return self
     end
+
     local delay = task.delay(5, function()
         warn("Infinite yield possible on GlobalDataStream:Wait()")
     end)
+
     repeat
         self.Changed:Wait()
     until self._data ~= nil
+
     task.cancel(delay)
     return self
 end
