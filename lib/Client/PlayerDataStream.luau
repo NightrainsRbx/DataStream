@@ -1,17 +1,16 @@
 local DeltaCompress = require(script.Parent.Parent.Parent.DeltaCompress)
 local Signal = require(script.Parent.Parent.Parent.Signal)
-
-local ReceivedDataEvent = script.Parent.Parent.Server.PlayerDataStream:WaitForChild("RemoteEvent") :: RemoteEvent
-local RequestDataFunction = script.Parent.Parent.Server.PlayerDataStream:WaitForChild("RemoteFunction") :: RemoteFunction
+local Middleware = require(script.Parent.Parent.Middleware)
+local Util = require(script.Parent.Parent.Util)
 
 local DataStreams = {}
 
 local PlayerDataStream = {}
 
 type Self = {
+    _id: number,
     _name: string,
     _data: unknown?,
-    _conn: RBXScriptConnection?,
 
     Changed: Signal.Signal<>,
     Removed: Signal.Signal<>
@@ -19,20 +18,21 @@ type Self = {
 
 function PlayerDataStream.new(name: string)
     local self = {
+        _id = Util.hashString("player" .. name),
         _name = name,
         Changed = Signal.new(),
         Removed = Signal.new()
     }
 
-    if DataStreams[name] then
+    if DataStreams[self._id] then
         error(`A PlayerDataStream with the name "{name}" already exists`)
     end
-    DataStreams[name] = self
+    DataStreams[self._id] = self
 
-    self._data = RequestDataFunction:InvokeServer(name)
+    self._data = Middleware.InvokeServer(self._id)
 
-    self._conn = ReceivedDataEvent.OnClientEvent:Connect(function(dataName, method, data)
-        if dataName ~= name then
+    Middleware.OnClientEvent(function(id, method, data)
+        if id ~= self._id then
             return
         end
         if method == "update" then
@@ -78,11 +78,16 @@ end
 
 function PlayerDataStream.Wait(self: Self)
     if self._data ~= nil then
-        return
+        return self
     end
+    local delay = task.delay(5, function()
+        warn("Infinite yield possible on PlayerDataStream:Wait()")
+    end)
     repeat
         self.Changed:Wait()
     until self._data ~= nil
+    task.cancel(delay)
+    return self
 end
 
 return PlayerDataStream

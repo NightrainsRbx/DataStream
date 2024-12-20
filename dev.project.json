@@ -3,10 +3,25 @@
 	"tree": {
 		"$className": "DataModel",
 		"ReplicatedStorage": {
+			"Shared": {
+				"$path": "test/shared"
+			},
 			"Packages": {
 				"$path": "Packages",
-				"Red": {
+				"DataStream": {
 					"$path": "lib"
+				}
+			}
+		},
+		"ServerScriptService": {
+			"Server": {
+				"$path": "test/server"
+			}
+		},
+		"StarterPlayer": {
+			"StarterPlayerScripts": {
+				"Client": {
+					"$path": "test/client"
 				}
 			}
 		}

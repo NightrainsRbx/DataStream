@@ -1,21 +1,14 @@
 local DeltaCompress = require(script.Parent.Parent.Parent.DeltaCompress)
 local Signal = require(script.Parent.Parent.Parent.Signal)
-
-local ReceivedDataEvent = Instance.new("RemoteEvent", script)
-local RequestDataFunction = Instance.new("RemoteFunction", script)
+local Middleware = require(script.Parent.Parent.Middleware)
+local Util = require(script.Parent.Parent.Util)
 
 local DataStreams = {}
-
-RequestDataFunction.OnServerInvoke = function(player, dataName)
-    if not DataStreams[dataName] then
-        return nil
-    end
-    return DataStreams[dataName]._data[player]
-end
 
 local PlayerDataStream = {}
 
 type Self = {
+    _id: number,
     _name: string,
     _data: {[Player]: unknown?},
     _copy: {[Player]: unknown?},
@@ -27,6 +20,7 @@ type Self = {
 
 function PlayerDataStream.new(name: string)
     local self = {
+        _id = Util.hashString("player" .. name),
         _name = name,
         _data = {},
         _copy = {},
@@ -35,14 +29,21 @@ function PlayerDataStream.new(name: string)
         Removed = Signal.new()
     }
 
-    if DataStreams[name] then
+    if DataStreams[self._id] then
         error(`A PlayerDataStream with the name "{name}" already exists`)
     end
-    DataStreams[name] = self
+    DataStreams[self._id] = self
 
     setmetatable(self, {__index = PlayerDataStream})
 
     return self
+end
+
+function PlayerDataStream.handleRequest(player, id)
+    if not DataStreams[id] then
+        return nil
+    end
+    return DataStreams[id]._data[player]
 end
 
 function PlayerDataStream.GetData(self: Self, player: Player)
@@ -56,31 +57,15 @@ function PlayerDataStream.GetData(self: Self, player: Player)
     return self._data[player]
 end
 
-local function deepCopy(tbl: any): any
-    if type(tbl) ~= "table" then
-        return nil
-    end
-
-    local copy = table.clone(tbl)
-
-    for key, value in tbl do
-        if type(value) == "table" then
-            copy[key] = deepCopy(value)
-        end
-    end
-
-    return copy
-end
-
 function PlayerDataStream.GetDataMutable(self: Self, player: Player)
     assert(player :: any ~= nil, `Argument "player" needs to be specified in the server`)
     assert(self._data[player] ~= nil, `PlayerDataStream "{self._name}" does not contain any data for player "{player.Name}"`)
 
     if self._copy[player] == nil then
-        self._copy[player] = deepCopy(self._data[player])
+        self._copy[player] = Util.deepCopy(self._data[player])
     end
 
-    local function defer()
+    local function defer(self: Self)
         if self._deferThread[player] then
             return
         end
@@ -88,7 +73,7 @@ function PlayerDataStream.GetDataMutable(self: Self, player: Player)
         self._deferThread[player] = task.defer(function()
             local diff, _ = DeltaCompress.diffMutable(self._copy[player], self._data[player])
             if diff then
-                ReceivedDataEvent:FireClient(player, self._name, "update", diff)
+                Middleware.FireClient(player, self._id, "update", diff)
                 self.Changed:Fire(player)
                 self._deferThread[player] = nil
             end
@@ -97,15 +82,15 @@ function PlayerDataStream.GetDataMutable(self: Self, player: Player)
 
     return setmetatable({}, {
         __index = function(_, index)
-            defer()
+            defer(self)
             return (self._data[player] :: any)[index]
         end,
         __newindex = function(_, index, value)
-            defer();
+            defer(self);
             (self._data[player] :: any)[index] = value
         end,
         __iter = function()
-            defer()
+            defer(self)
             return next, self._data[player]
         end
     })
@@ -116,7 +101,7 @@ function PlayerDataStream.SetData(self: Self, player: Player, data)
     assert(type(data) == "table", `Argument "data" needs to be a table, provided "{type(data)}"`)
 
     self._data[player] = data
-    self._copy[player] = deepCopy(self._data[player])
+    self._copy[player] = Util.deepCopy(self._data[player])
 
     if self._deferThread[player] then
         task.cancel(self._deferThread[player] :: thread)
@@ -125,7 +110,7 @@ function PlayerDataStream.SetData(self: Self, player: Player, data)
 
     self.Changed:Fire(player)
 
-    ReceivedDataEvent:FireClient(player, self._name, "set", self._data[player])
+    Middleware.FireClient(player, self._id, "set", self._data[player])
 end
 
 function PlayerDataStream.HasData(self: Self, player: Player)
@@ -151,18 +136,23 @@ function PlayerDataStream.RemoveData(self: Self, player: Player)
 
     self.Removed:Fire(player)
 
-    ReceivedDataEvent:FireClient(player, self._name, "remove")
+    Middleware.FireClient(player, self._id, "remove")
 end
 
 function PlayerDataStream.Wait(self: Self, player: Player)
     assert(player :: any ~= nil, `Argument "player" needs to be specified in the server`)
 
     if self._data[player] ~= nil then
-        return
+        return self
     end
+    local delay = task.delay(5, function()
+        warn("Infinite yield possible on PlayerDataStream:Wait()")
+    end)
     repeat
         self.Changed:Wait()
     until self._data[player] ~= nil
+    task.cancel(delay)
+    return self
 end
 
 return PlayerDataStream

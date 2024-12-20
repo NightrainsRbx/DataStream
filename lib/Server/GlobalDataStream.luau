@@ -1,21 +1,14 @@
 local DeltaCompress = require(script.Parent.Parent.Parent.DeltaCompress)
 local Signal = require(script.Parent.Parent.Parent.Signal)
-
-local ReceivedDataEvent = Instance.new("RemoteEvent", script)
-local RequestDataFunction = Instance.new("RemoteFunction", script)
+local Middleware = require(script.Parent.Parent.Middleware)
+local Util = require(script.Parent.Parent.Util)
 
 local DataStreams = {}
-
-RequestDataFunction.OnServerInvoke = function(_, dataName)
-    if not DataStreams[dataName] then
-        return nil
-    end
-    return DataStreams[dataName]._data
-end
 
 local GlobalDataStream = {}
 
 type Self = {
+    _id: number,
     _name: string,
     _data: unknown?,
     _copy: unknown?,
@@ -26,18 +19,27 @@ type Self = {
 
 function GlobalDataStream.new(name: string)
     local self = {
+        _id = Util.hashString("global" .. name),
         _name = name,
+        _data = nil,
         Changed = Signal.new()
     }
 
-    if DataStreams[name] then
+    if DataStreams[self._id] then
         error(`A GlobalDataStream with the name "{name}" already exists`)
     end
-    DataStreams[name] = self
+    DataStreams[self._id] = self
 
     setmetatable(self, {__index = GlobalDataStream})
 
     return self
+end
+
+function GlobalDataStream.handleRequest(_, id)
+    if not DataStreams[id] then
+        return nil
+    end
+    return DataStreams[id]._data
 end
 
 function GlobalDataStream.GetData(self: Self)
@@ -50,30 +52,14 @@ function GlobalDataStream.GetData(self: Self)
     return self._data
 end
 
-local function deepCopy(tbl: any): any
-    if type(tbl) ~= "table" then
-        return nil
-    end
-
-    local copy = table.clone(tbl)
-
-    for key, value in tbl do
-        if type(value) == "table" then
-            copy[key] = deepCopy(value)
-        end
-    end
-
-    return copy
-end
-
 function GlobalDataStream.GetDataMutable(self: Self)
     assert(self._data ~= nil, `GlobalDataStream "{self._name}" does not contain any data`)
 
     if self._copy == nil then
-        self._copy = deepCopy(self._data)
+        self._copy = Util.deepCopy(self._data)
     end
 
-    local function defer()
+    local function defer(self: Self)
         if self._deferThread then
             return
         end
@@ -81,7 +67,7 @@ function GlobalDataStream.GetDataMutable(self: Self)
         self._deferThread = task.defer(function()
             local diff, _ = DeltaCompress.diffMutable(self._copy, self._data)
             if diff then
-                ReceivedDataEvent:FireAllClients(self._name, "update", diff)
+                Middleware.FireAllClients(self._id, "update", diff)
                 self.Changed:Fire()
                 self._deferThread = nil
             end
@@ -90,15 +76,15 @@ function GlobalDataStream.GetDataMutable(self: Self)
 
     return setmetatable({}, {
         __index = function(_, index)
-            defer()
+            defer(self)
             return (self._data :: any)[index]
         end,
         __newindex = function(_, index, value)
-            defer();
+            defer(self);
             (self._data :: any)[index] = value
         end,
         __iter = function()
-            defer()
+            defer(self)
             return next, self._data
         end
     })
@@ -108,7 +94,7 @@ function GlobalDataStream.SetData(self: Self, data)
     assert(type(data) == "table", `Argument "data" needs to be a table, provided "{type(data)}"`)
 
     self._data = data
-    self._copy = deepCopy(self._data)
+    self._copy = Util.deepCopy(self._data)
 
     if self._deferThread then
         task.cancel(self._deferThread)
@@ -117,7 +103,7 @@ function GlobalDataStream.SetData(self: Self, data)
 
     self.Changed:Fire()
 
-    ReceivedDataEvent:FireAllClients(self._name, "set", self._data)
+    Middleware.FireAllClients(self._id, "set", self._data)
 end
 
 function GlobalDataStream.HasData(self: Self)
@@ -126,11 +112,16 @@ end
 
 function GlobalDataStream.Wait(self: Self)
     if self._data ~= nil then
-        return
+        return self
     end
+    local delay = task.delay(5, function()  
+        warn("Infinite yield possible on GlobalDataStream:Wait()")
+    end)
     repeat
         self.Changed:Wait()
     until self._data ~= nil
+    task.cancel(delay)
+    return self
 end
 
 return GlobalDataStream
