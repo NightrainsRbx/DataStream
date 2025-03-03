@@ -24,7 +24,10 @@ local function StartMatch(players: {Player})
 
     while task.wait(1) do
         -- MatchData:GetMutable(players[1]).TimeLeft -= 1
-        MatchData:GetMutable(dataId).TimeLeft -= 1
+        -- MatchData:GetMutable(dataId).TimeLeft -= 1
+        MatchData:UpdateData(dataId, function(data)
+            data.TimeLeft -= 1
+        end)
     end
 end
 

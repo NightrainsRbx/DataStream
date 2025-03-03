@@ -63,6 +63,10 @@ function GlobalDataStream.SetData()
     error("GlobalDataStream cannot be mutated from the client")
 end
 
+function GlobalDataStream.UpdateData()
+    error("GlobalDataStream cannot be mutated from the client")
+end
+
 function GlobalDataStream.HasData(self: Self)
     return self._data ~= nil
 end

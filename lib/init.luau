@@ -22,6 +22,7 @@ export type GlobalDataStream<T> = {
     GetData: (self: GlobalDataStream<T>) -> T,
     GetMutable: (self: GlobalDataStream<T>) -> T,
     SetData: (self: GlobalDataStream<T>, data: T) -> (),
+    UpdateData: (self: GlobalDataStream<T>, (data: T) -> ()) -> (),
     HasData: (self: GlobalDataStream<T>) -> boolean,
     Wait: (self: GlobalDataStream<T>) -> GlobalDataStream<T>,
     Changed: Signal<>,
@@ -35,6 +36,7 @@ export type PlayerDataStream<T> = {
     GetMutable: (self: PlayerDataStream<T>, player: Player | DataId) -> T,
     GetId: (self: PlayerDataStream<T>, data: T) -> DataId,
     SetData: (self: PlayerDataStream<T>, player: Player, data: T | DataId) -> (),
+    UpdateData: (self: PlayerDataStream<T>, player: Player | DataId, (data: T) -> ()) -> (),
     RemoveData: (self: PlayerDataStream<T>, player: Player | DataId) -> (),
     HasData: ((self: PlayerDataStream<T>, player: Player | DataId) -> boolean)
         & (self: PlayerDataStream<T>) -> boolean,

@@ -190,6 +190,49 @@ function PlayerDataStream.SetData(self: Self, player: Player, data)
     Middleware.FireClient(player, self._id, "set", self._data[player])
 end
 
+function PlayerDataStream.UpdateData(self: Self, key: Player | number, callback)
+    assert(key ~= nil, `Argument "player" needs to be specified in the server`)
+
+    if typeof(key) == "Instance" and key:IsA("Player") then
+        assert(self._data[self._playerToDataId[key] or key] ~= nil, `PlayerDataStream "{self._name}" does not contain any data for player "{key.Name}"`)
+    elseif type(key) == "number" then
+        assert(self._data[key] ~= nil, `PlayerDataStream "{self._name}" does not contain any data with id "{key}"`)
+    else
+        error(`Argument "player" needs to be a Player or number, provided "{typeof(key)}"`)
+    end
+
+    key = self._playerToDataId[key] or key
+
+    assert(type(callback) == "function", `Argument "callback" needs to be a function, provided "{type(callback)}"`)
+
+    local copy = Util.deepCopy(self._data[key])
+    local finished = false
+    task.defer(function()
+        if not finished then
+            warn("GlobalDataStream:UpdateData() yielded")
+        end
+    end)
+    callback(copy)
+    finished = true
+
+    local diff = DeltaCompress.diffMutable(self._data[key], copy)
+    if diff then
+        self._copy[key] = copy
+
+        if type(key) == "number" then
+            for player, dataId in self._playerToDataId do
+                if dataId == key then
+                    self.Changed:Fire(player)
+                    Middleware.FireClient(player, self._id, "update", diff)
+                end
+            end
+        else
+            self.Changed:Fire(key)
+            Middleware.FireClient(key, self._id, "update", diff)
+        end
+    end
+end
+
 function PlayerDataStream.HasData(self: Self, key: Player | number)
     assert(key ~= nil, `Argument "player" needs to be specified in the server`)
 

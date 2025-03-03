@@ -107,6 +107,27 @@ function GlobalDataStream.SetData(self: Self, data)
     Middleware.FireAllClients(self._id, "set", self._data)
 end
 
+function GlobalDataStream.UpdateData(self: Self, callback)
+    assert(type(callback) == "function", `Argument "callback" needs to be a function, provided "{type(callback)}"`)
+
+    local copy = Util.deepCopy(self._data)
+    local finished = false
+    task.defer(function()
+        if not finished then
+            warn("GlobalDataStream:UpdateData() yielded")
+        end
+    end)
+    callback(copy)
+    finished = true
+
+    local diff = DeltaCompress.diffMutable(self._data, copy)
+    if diff then
+        self._copy = copy
+        self.Changed:Fire()
+        Middleware.FireAllClients(self._id, "update", diff)
+    end
+end
+
 function GlobalDataStream.HasData(self: Self)
     return self._data ~= nil
 end

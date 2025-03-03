@@ -72,6 +72,10 @@ function PlayerDataStream.SetData()
     error("PlayerDataStream cannot be mutated from the client")
 end
 
+function PlayerDataStream.UpdateData()
+    error("PlayerDataStream cannot be mutated from the client")
+end
+
 function PlayerDataStream.RemoveData()
     error("PlayerDataStream cannot be mutated from the client")
 end
